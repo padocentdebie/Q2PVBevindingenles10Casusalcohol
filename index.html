@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Politieacademie - Casus Artikel 8</title>
+    <title>Lesmodule Artikel 8 - Casus</title>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getDatabase, ref, push, onValue, set, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+        import { getDatabase, ref, push, onValue, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBEod8zm1jvvkmPbe6cA_SQo2U_esC9yTY",
@@ -21,114 +21,179 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        // UI Elementen
-        window.submitPost = function() {
+        // Functies voor de UI
+        window.startLes = function() {
             const naam = document.getElementById('voornaam').value;
             const klas = document.getElementById('klasSelect').value;
-            const type = document.getElementById('typeSelect').value;
-            const tekst = document.getElementById('inputTekst').value;
-
-            if(!naam || !tekst) return alert("Vul je naam en tekst in!");
-
-            const postRef = ref(db, `lessen/${klas}/${type}`);
-            push(postRef, {
-                student: naam,
-                inhoud: tekst,
-                timestamp: Date.now()
-            });
-            document.getElementById('inputTekst').value = '';
+            if(!naam || !klas) return alert("Vul eerst je naam in en kies een klas.");
+            
+            document.getElementById('login-scherm').style.display = 'none';
+            document.getElementById('les-scherm').style.display = 'block';
+            setupLiveFeed(klas);
         };
 
-        window.resetKlas = function() {
+        window.verstuurUitwerking = function() {
+            const naam = document.getElementById('voornaam').value;
             const klas = document.getElementById('klasSelect').value;
-            if(confirm(`Weet je zeker dat je alle data voor klas ${klas} wilt wissen?`)) {
+            const daa = document.getElementById('daaInput').value;
+            const pv = document.getElementById('pvInput').value;
+
+            if(!daa && !pv) return alert("Vul tenminste één veld in.");
+
+            const postRef = ref(db, `lessen/${klas}/posts`);
+            push(postRef, {
+                student: naam,
+                daa: daa,
+                pv: pv,
+                timestamp: Date.now()
+            });
+            
+            document.getElementById('daaInput').value = '';
+            document.getElementById('pvInput').value = '';
+        };
+
+        function setupLiveFeed(klas) {
+            const feedRef = ref(db, `lessen/${klas}/posts`);
+            onValue(feedRef, (snapshot) => {
+                const feedDiv = document.getElementById('liveFeedContainer');
+                feedDiv.innerHTML = '';
+                const data = snapshot.val();
+                if(!data) return;
+
+                Object.keys(data).reverse().forEach(key => {
+                    const post = data[key];
+                    const postHtml = `
+                        <div class="feed-item">
+                            <div class="feed-header"><strong>${post.student}</strong></div>
+                            <div class="feed-content">
+                                <strong>DAA:</strong><p>${post.daa || '<em>Geen invoer</em>'}</p>
+                                <strong>PV Bevindingen:</strong><p>${post.pv || '<em>Geen invoer</em>'}</p>
+                            </div>
+                            <div class="feedback-list" id="feedback-list-${key}"></div>
+                            <div class="feedback-input-box">
+                                <input type="text" id="fb-in-${key}" placeholder="Typ feedback voor ${post.student}...">
+                                <button onclick="verstuurFeedback('${klas}', '${key}')">Post Feedback</button>
+                            </div>
+                        </div>`;
+                    feedDiv.innerHTML += postHtml;
+                    
+                    // Laad bestaande feedback
+                    if(post.feedback) {
+                        const fbList = document.getElementById(`feedback-list-${key}`);
+                        Object.values(post.feedback).forEach(fb => {
+                            fbList.innerHTML += `<div class="fb-bubble"><strong>${fb.van}:</strong> ${fb.tekst}</div>`;
+                        });
+                    }
+                });
+            });
+        }
+
+        window.verstuurFeedback = function(klas, postKey) {
+            const fbTekst = document.getElementById(`fb-in-${postKey}`).value;
+            const naam = document.getElementById('voornaam').value;
+            if(!fbTekst) return;
+
+            const fbRef = ref(db, `lessen/${klas}/posts/${postKey}/feedback`);
+            push(fbRef, { van: naam, tekst: fbTekst });
+            document.getElementById(`fb-in-${postKey}`).value = '';
+        };
+
+        window.resetSessie = function() {
+            const klas = document.getElementById('klasSelect').value;
+            if(confirm("Lessen voor deze klas wissen?")) {
                 remove(ref(db, `lessen/${klas}`));
             }
         };
-
-        // Live Feed Luisteraar
-        const feedDiv = document.getElementById('liveFeed');
-        document.getElementById('klasSelect').addEventListener('change', (e) => {
-            const klas = e.target.value;
-            const klasRef = ref(db, `lessen/${klas}`);
-            onValue(klasRef, (snapshot) => {
-                feedDiv.innerHTML = '';
-                const data = snapshot.val();
-                for (let type in data) {
-                    const section = document.createElement('div');
-                    section.innerHTML = `<h3>Feed: ${type}</h3>`;
-                    for (let id in data[type]) {
-                        const item = data[type][id];
-                        section.innerHTML += `
-                            <div class="post">
-                                <strong>${item.student}:</strong><br>${item.inhoud}
-                                <div class="feedback-area" id="fb-${id}"></div>
-                                <input type="text" placeholder="Geef feedback..." onkeydown="if(event.key==='Enter') sendFeedback('${klas}', '${type}', '${id}', this.value, this)">
-                            </div>`;
-                    }
-                    feedDiv.appendChild(section);
-                }
-            });
-        });
-
-        window.sendFeedback = function(klas, type, postId, fbTekst, inputElement) {
-            const naam = document.getElementById('voornaam').value || "Anoniem";
-            const fbRef = ref(db, `lessen/${klas}/${type}/${postId}/feedback`);
-            push(fbRef, { student: naam, tekst: fbTekst });
-            inputElement.value = '';
-        };
     </script>
-
     <style>
-        body { font-family: sans-serif; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px; background: #eef2f3; }
-        .panel { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .scroll-box { height: 250px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; font-size: 0.9em; background: #fafafa; }
-        .post { background: #f0f4f8; padding: 10px; margin: 10px 0; border-left: 4px solid #00529b; }
-        textarea { width: 100%; height: 100px; margin-top: 10px; }
-        button { cursor: pointer; padding: 10px; background: #00529b; color: white; border: none; border-radius: 4px; }
-        .reset-btn { background: #cc0000; float: right; }
-        input[type="text"] { width: 100%; box-sizing: border-box; margin-top: 5px; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        
+        /* Login */
+        #login-scherm { text-align: center; padding: 50px 0; }
+        input, select, textarea { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
+        button { background: #00529b; color: white; border: none; padding: 12px 25px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #003d73; }
+
+        /* Les Scherm */
+        #les-scherm { display: none; }
+        .scroll-wet { height: 250px; overflow-y: scroll; background: #f9f9f9; padding: 15px; border: 1px solid #ccc; font-size: 14px; line-height: 1.5; margin-bottom: 20px; }
+        .casus-box { background: #e7f3ff; border-left: 5px solid #00529b; padding: 15px; margin-bottom: 20px; }
+        
+        /* Feed */
+        .live-feed { margin-top: 40px; border-top: 2px solid #00529b; padding-top: 20px; }
+        .feed-item { background: #fff; border: 1px solid #e0e0e0; margin-bottom: 20px; border-radius: 8px; overflow: hidden; }
+        .feed-header { background: #f8f9fa; padding: 10px 15px; border-bottom: 1px solid #eee; }
+        .feed-content { padding: 15px; }
+        .fb-bubble { background: #f0f2f5; padding: 8px 12px; border-radius: 15px; margin: 5px 0; font-size: 14px; width: fit-content; }
+        .feedback-input-box { display: flex; padding: 10px; background: #fafafa; border-top: 1px solid #eee; }
+        .feedback-input-box input { margin: 0; border-radius: 20px 0 0 20px; }
+        .feedback-input-box button { border-radius: 0 20px 20px 0; padding: 0 15px; }
+        .reset-btn { background: #dc3545; font-size: 12px; margin-top: 20px; }
     </style>
 </head>
 <body>
 
-<div class="left-column">
-    <div class="panel">
-        <h2>Wettekst: Artikel 8 WVW</h2>
-        <div class="scroll-box">
-            <strong>Artikel 81568</strong><br>
-            1. Het is een ieder verboden een voertuig te besturen... (tekst ingekort voor preview)...
-            [Hier komt de volledige tekst uit je eerdere vraag]
-        </div>
-    </div>
-
-    <div class="panel" style="margin-top:20px;">
-        <h2>Casus</h2>
-        <p><i>Bestuurder (45 jaar), slingert, ruikt naar alcohol, blaast 355 µg/l op bureau. Heeft rijbewijs > 20 jaar.</i></p>
-        <hr>
-        <input type="text" id="voornaam" placeholder="Je voornaam">
+<div class="container">
+    <div id="login-scherm">
+        <h1>Inloggen Lesmodule</h1>
+        <input type="text" id="voornaam" placeholder="Wat is je voornaam?">
         <select id="klasSelect">
-            <option value="">Selecteer klas...</option>
-            <option value="Klas-A">Klas A</option>
-            <option value="Klas-B">Klas B</option>
-            <option value="Klas-C">Klas C</option>
+            <option value="">Kies je klas...</option>
+            <option value="Klas-1">Klas 1</option>
+            <option value="Klas-2">Klas 2</option>
+            <option value="Klas-3">Klas 3</option>
         </select>
-        <select id="typeSelect">
-            <option value="DAA">DAA (Doel-Aanpak-Analyse)</option>
-            <option value="PV">PV Bevindingen</option>
-        </select>
-        <textarea id="inputTekst" placeholder="Typ hier je uitwerking..."></textarea>
-        <button onclick="submitPost()">Verstuur naar Livefeed</button>
+        <button onclick="startLes()">Start de les</button>
     </div>
-</div>
 
-<div class="right-column">
-    <div class="panel">
-        <button class="reset-btn" onclick="resetKlas()">Reset Klas Feed</button>
-        <h2>Livefeed & Feedback</h2>
-        <div id="liveFeed">
-            <i>Selecteer eerst een klas om de feed te zien...</i>
+    <div id="les-scherm">
+        <h2>Wettekst: Artikel 8 WVW 1994</h2>
+        <div class="scroll-wet">
+            Artikel 81568Toon relaties in LiDO<br>
+            Maak een permanente link<br>
+            Toon wetstechnische informatie<br>
+            ...<br>
+            Druk het regelingonderdeel af<br>
+            Sla het regelingonderdeel op<br>
+            <strong>1.</strong> Het is een ieder verboden een voertuig te besturen, als bestuurder te doen besturen of als begeleider op te treden, terwijl hij verkeert onder zodanige invloed van een stof, waarvan hij weet of redelijkerwijs moet weten, dat het gebruik daarvan - al dan niet in combinatie met het gebruik van een andere stof - de rijvaardigheid kan verminderen, dat hij niet tot behoorlijk besturen of tot behoorlijk te begeleiden in staat moet worden geacht.<br><br>
+            <strong>2.</strong> Het is een ieder verboden een voertuig te besturen, als bestuurder te doen besturen of als begeleider op te treden na zodanig gebruik van alcoholhoudende drank, dat:<br>
+            a. het alcoholgehalte in zijn adem bij een onderzoek hoger blijkt te zijn dan 220 microgram alcohol per liter uitgeademde lucht, dan wel<br>
+            b. het alcoholgehalte in zijn bloed bij een onderzoek hoger blijkt te zijn dan 0,5 milligram alcohol per milliliter bloed.<br><br>
+            <strong>3.</strong> In afwijking van het tweede lid is het de bestuurder van een motorrijtuig voor het besturen waarvan een rijbewijs is vereist, verboden dat motorrijtuig te besturen of als bestuurder te doen besturen na zodanig gebruik van alcoholhoudende drank, dat:<br>
+            a. het alcoholgehalte van zijn adem bij een onderzoek hoger blijkt te zijn dan 88 microgram alcohol per liter uitgeademde lucht, dan wel<br>
+            b. het alcoholgehalte van zijn bloed bij een onderzoek hoger blijkt te zijn dan 0,2 milligram per milliliter bloed,<br>
+            indien:<br>
+            1° sedert de datum waarop hem voor de eerste maal een rijbewijs voor de categorie AM of T is afgegeven nog geen zeven jaren zijn verstreken en hij op het tijdstip van afgifte van dat rijbewijs de leeftijd van achttien jaar nog niet heeft bereikt,<br>
+            2°. sedert de datum waarop hem voor het eerst een rijbewijs is afgegeven nog geen vijf jaren zijn verstreken en hij op het tijdstip van afgifte van dat rijbewijs de leeftijd van ten minste achttien jaar heeft bereikt, dan wel<br>
+            3°. indien sedert de datum waarop hem voor het eerst een rijbewijs voor de categorie B is afgegeven nog geen vijf jaren zijn verstreken en hij op het tijdstip van afgifte van het rijbewijs voor de categorie B nog niet de leeftijd van achttien jaar heeft bereikt, ongeacht of hij op dat tijdstip van afgifte van het rijbewijs voor de categorie B al in het bezit was van een rijbewijs voor de categorie AM of T.<br><br>
+            <strong>4.</strong> Het derde lid is van overeenkomstige toepassing op een ieder die zonder dat aan hem een rijbewijs is afgegeven een motorrijtuig bestuurt voor het besturen waarvan een rijbewijs vereist is.<br><br>
+            <strong>5.</strong> Het is een ieder verboden een voertuig te besturen, als bestuurder te doen besturen of als begeleider op te treden na gebruik van een of meer van de bij algemene maatregel van bestuur aangewezen stoffen als bedoeld in het eerste lid, waardoor het gehalte in zijn bloed van de bij de stof vermelde meetbare stof, of in geval van gebruik van meer stoffen als bedoeld in het eerste lid die bij algemene maatregel van bestuur aangewezen zijn als groep, het totale gehalte in zijn bloed van de bij die stoffen vermelde meetbare stoffen, bij een onderzoek hoger blijkt te zijn dan de daarbij vermelde grenswaarde. Indien een van de bij algemene maatregel van bestuur aangewezen stoffen of alcohol in combinatie wordt gebruikt met een of meer andere van deze aangewezen stoffen of met een van de stoffen als bedoeld in het eerste lid die niet bij deze algemene maatregel van bestuur zijn aangewezen, geldt voor iedere aangewezen stof of alcohol afzonderlijk een bij algemene maatregel van bestuur vast te stellen grenswaarde. Die grenswaarde is gelijk aan de laagst meetbare hoeveelheid van die stof of alcohol die niet op natuurlijke wijze in het bloed aanwezig kan zijn.<br><br>
+            <strong>6.</strong> Het is verboden een motorrijtuig als bestuurder te doen besturen door een persoon waarvan men weet of redelijkerwijs moet weten dat deze verkeert in een toestand als in het eerste, tweede, derde of vijfde lid is omschreven.<br><br>
+            <strong>7.</strong> Voor de toepassing van het derde lid wordt onder een rijbewijs mede verstaan een rijbewijs, afgegeven door het daartoe bevoegde gezag buiten Nederland en wordt voor de toepassing van het derde lid, aanhef en onderdelen 1° en 3°, met een rijbewijs voor de categorie AM of T gelijk gesteld een rijbewijs voor de categorie A1, afgegeven door het daartoe bevoegde gezag in een andere lidstaat van de Europese Unie, een andere staat die partij is bij de Overeenkomst betreffende de Europese Economische Ruimte of Zwitserland aan een persoon die op het tijdstip van afgifte nog niet de leeftijd van achttien jaar had bereikt.
         </div>
+
+        <div class="casus-box">
+            <h3>De Casus</h3>
+            Slingerende auto, 45-jarige bestuurder (20 jaar rijbewijs), uitslag 'A', blaast op bureau <strong>355 Ug/l</strong>.
+        </div>
+
+        <h3>Invoer</h3>
+        <label>DAA (Doel-Aanpak-Analyse):</label>
+        <textarea id="daaInput" placeholder="Typ hier de DAA..."></textarea>
+        
+        <label>PV Bevindingen:</label>
+        <textarea id="pvInput" placeholder="Stel hier het PV op..."></textarea>
+        
+        <button onclick="verstuurUitwerking()">Verstuur naar Livefeed</button>
+
+        <div class="live-feed">
+            <h2>Livefeed Feedback</h2>
+            <div id="liveFeedContainer">
+                </div>
+        </div>
+
+        <button class="reset-btn" onclick="resetSessie()">Reset Klas Data</button>
     </div>
 </div>
 
