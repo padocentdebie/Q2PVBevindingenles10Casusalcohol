@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Politieacademie - Casus Artikel 8</title>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, push, onValue, set, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBEod8zm1jvvkmPbe6cA_SQo2U_esC9yTY",
+            authDomain: "aangiftebotje.firebaseapp.com",
+            databaseURL: "https://aangiftebotje-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "aangiftebotje",
+            storageBucket: "aangiftebotje.firebasestorage.app",
+            messagingSenderId: "825633841222",
+            appId: "1:825633841222:web:15d93d08e2b719285dea47"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // UI Elementen
+        window.submitPost = function() {
+            const naam = document.getElementById('voornaam').value;
+            const klas = document.getElementById('klasSelect').value;
+            const type = document.getElementById('typeSelect').value;
+            const tekst = document.getElementById('inputTekst').value;
+
+            if(!naam || !tekst) return alert("Vul je naam en tekst in!");
+
+            const postRef = ref(db, `lessen/${klas}/${type}`);
+            push(postRef, {
+                student: naam,
+                inhoud: tekst,
+                timestamp: Date.now()
+            });
+            document.getElementById('inputTekst').value = '';
+        };
+
+        window.resetKlas = function() {
+            const klas = document.getElementById('klasSelect').value;
+            if(confirm(`Weet je zeker dat je alle data voor klas ${klas} wilt wissen?`)) {
+                remove(ref(db, `lessen/${klas}`));
+            }
+        };
+
+        // Live Feed Luisteraar
+        const feedDiv = document.getElementById('liveFeed');
+        document.getElementById('klasSelect').addEventListener('change', (e) => {
+            const klas = e.target.value;
+            const klasRef = ref(db, `lessen/${klas}`);
+            onValue(klasRef, (snapshot) => {
+                feedDiv.innerHTML = '';
+                const data = snapshot.val();
+                for (let type in data) {
+                    const section = document.createElement('div');
+                    section.innerHTML = `<h3>Feed: ${type}</h3>`;
+                    for (let id in data[type]) {
+                        const item = data[type][id];
+                        section.innerHTML += `
+                            <div class="post">
+                                <strong>${item.student}:</strong><br>${item.inhoud}
+                                <div class="feedback-area" id="fb-${id}"></div>
+                                <input type="text" placeholder="Geef feedback..." onkeydown="if(event.key==='Enter') sendFeedback('${klas}', '${type}', '${id}', this.value, this)">
+                            </div>`;
+                    }
+                    feedDiv.appendChild(section);
+                }
+            });
+        });
+
+        window.sendFeedback = function(klas, type, postId, fbTekst, inputElement) {
+            const naam = document.getElementById('voornaam').value || "Anoniem";
+            const fbRef = ref(db, `lessen/${klas}/${type}/${postId}/feedback`);
+            push(fbRef, { student: naam, tekst: fbTekst });
+            inputElement.value = '';
+        };
+    </script>
+
+    <style>
+        body { font-family: sans-serif; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px; background: #eef2f3; }
+        .panel { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .scroll-box { height: 250px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; font-size: 0.9em; background: #fafafa; }
+        .post { background: #f0f4f8; padding: 10px; margin: 10px 0; border-left: 4px solid #00529b; }
+        textarea { width: 100%; height: 100px; margin-top: 10px; }
+        button { cursor: pointer; padding: 10px; background: #00529b; color: white; border: none; border-radius: 4px; }
+        .reset-btn { background: #cc0000; float: right; }
+        input[type="text"] { width: 100%; box-sizing: border-box; margin-top: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="left-column">
+    <div class="panel">
+        <h2>Wettekst: Artikel 8 WVW</h2>
+        <div class="scroll-box">
+            <strong>Artikel 81568</strong><br>
+            1. Het is een ieder verboden een voertuig te besturen... (tekst ingekort voor preview)...
+            [Hier komt de volledige tekst uit je eerdere vraag]
+        </div>
+    </div>
+
+    <div class="panel" style="margin-top:20px;">
+        <h2>Casus</h2>
+        <p><i>Bestuurder (45 jaar), slingert, ruikt naar alcohol, blaast 355 µg/l op bureau. Heeft rijbewijs > 20 jaar.</i></p>
+        <hr>
+        <input type="text" id="voornaam" placeholder="Je voornaam">
+        <select id="klasSelect">
+            <option value="">Selecteer klas...</option>
+            <option value="Klas-A">Klas A</option>
+            <option value="Klas-B">Klas B</option>
+            <option value="Klas-C">Klas C</option>
+        </select>
+        <select id="typeSelect">
+            <option value="DAA">DAA (Doel-Aanpak-Analyse)</option>
+            <option value="PV">PV Bevindingen</option>
+        </select>
+        <textarea id="inputTekst" placeholder="Typ hier je uitwerking..."></textarea>
+        <button onclick="submitPost()">Verstuur naar Livefeed</button>
+    </div>
+</div>
+
+<div class="right-column">
+    <div class="panel">
+        <button class="reset-btn" onclick="resetKlas()">Reset Klas Feed</button>
+        <h2>Livefeed & Feedback</h2>
+        <div id="liveFeed">
+            <i>Selecteer eerst een klas om de feed te zien...</i>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
