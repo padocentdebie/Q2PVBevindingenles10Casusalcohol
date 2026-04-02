@@ -21,14 +21,14 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        // Functies voor de UI
         window.startLes = function() {
-            const naam = document.getElementById('voornaam').value;
+            const naam = document.getElementById('voornaam').value.trim();
             const klas = document.getElementById('klasSelect').value;
-            if(!naam || !klas) return alert("Vul eerst je naam in en kies een klas.");
+            if(!naam || !klas) return alert("Vul eerst je naam in en kies een unit (klas).");
             
             document.getElementById('login-scherm').style.display = 'none';
             document.getElementById('les-scherm').style.display = 'block';
+            document.getElementById('display-info').innerText = `UNIT: ${klas} | AGENT: ${naam.toUpperCase()}`;
             setupLiveFeed(klas);
         };
 
@@ -72,12 +72,11 @@
                             <div class="feedback-list" id="feedback-list-${key}"></div>
                             <div class="feedback-input-box">
                                 <input type="text" id="fb-in-${key}" placeholder="Typ feedback voor ${post.student}...">
-                                <button onclick="verstuurFeedback('${klas}', '${key}')">Post Feedback</button>
+                                <button onclick="verstuurFeedback('${klas}', '${key}')">Post</button>
                             </div>
                         </div>`;
                     feedDiv.innerHTML += postHtml;
                     
-                    // Laad bestaande feedback
                     if(post.feedback) {
                         const fbList = document.getElementById(`feedback-list-${key}`);
                         Object.values(post.feedback).forEach(fb => {
@@ -100,7 +99,7 @@
 
         window.resetSessie = function() {
             const klas = document.getElementById('klasSelect').value;
-            if(confirm("Lessen voor deze klas wissen?")) {
+            if(confirm(`Alle data voor Unit ${klas} wissen? Dit kan niet ongedaan worden gemaakt.`)) {
                 remove(ref(db, `lessen/${klas}`));
             }
         };
@@ -108,28 +107,24 @@
     <style>
         body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; color: #333; }
         .container { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        
-        /* Login */
         #login-scherm { text-align: center; padding: 50px 0; }
         input, select, textarea { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
         button { background: #00529b; color: white; border: none; padding: 12px 25px; border-radius: 6px; cursor: pointer; font-weight: bold; }
         button:hover { background: #003d73; }
-
-        /* Les Scherm */
         #les-scherm { display: none; }
-        .scroll-wet { height: 250px; overflow-y: scroll; background: #f9f9f9; padding: 15px; border: 1px solid #ccc; font-size: 14px; line-height: 1.5; margin-bottom: 20px; }
+        .header-info { font-size: 12px; font-weight: bold; color: #00529b; margin-bottom: 20px; text-transform: uppercase; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .scroll-wet { height: 200px; overflow-y: scroll; background: #f9f9f9; padding: 15px; border: 1px solid #ccc; font-size: 13px; line-height: 1.5; margin-bottom: 20px; }
         .casus-box { background: #e7f3ff; border-left: 5px solid #00529b; padding: 15px; margin-bottom: 20px; }
-        
-        /* Feed */
         .live-feed { margin-top: 40px; border-top: 2px solid #00529b; padding-top: 20px; }
         .feed-item { background: #fff; border: 1px solid #e0e0e0; margin-bottom: 20px; border-radius: 8px; overflow: hidden; }
-        .feed-header { background: #f8f9fa; padding: 10px 15px; border-bottom: 1px solid #eee; }
-        .feed-content { padding: 15px; }
-        .fb-bubble { background: #f0f2f5; padding: 8px 12px; border-radius: 15px; margin: 5px 0; font-size: 14px; width: fit-content; }
+        .feed-header { background: #f8f9fa; padding: 10px 15px; border-bottom: 1px solid #eee; font-size: 14px; }
+        .feed-content { padding: 15px; font-size: 14px; }
+        .fb-bubble { background: #f0f2f5; padding: 8px 12px; border-radius: 15px; margin: 5px 15px; font-size: 13px; width: fit-content; }
         .feedback-input-box { display: flex; padding: 10px; background: #fafafa; border-top: 1px solid #eee; }
-        .feedback-input-box input { margin: 0; border-radius: 20px 0 0 20px; }
-        .feedback-input-box button { border-radius: 0 20px 20px 0; padding: 0 15px; }
-        .reset-btn { background: #dc3545; font-size: 12px; margin-top: 20px; }
+        .feedback-input-box input { margin: 0; border-radius: 20px 0 0 20px; font-size: 13px; }
+        .feedback-input-box button { border-radius: 0 20px 20px 0; padding: 0 15px; font-size: 12px; }
+        .reset-btn { background: #dc3545; font-size: 11px; margin-top: 30px; opacity: 0.7; }
+        .reset-btn:hover { background: #a71d2a; opacity: 1; }
     </style>
 </head>
 <body>
@@ -137,63 +132,59 @@
 <div class="container">
     <div id="login-scherm">
         <h1>Inloggen Lesmodule</h1>
-        <input type="text" id="voornaam" placeholder="Wat is je voornaam?">
+        <p>Voer je gegevens in om de casus te starten.</p>
+        <input type="text" id="voornaam" placeholder="Voornaam">
         <select id="klasSelect">
-            <option value="">Kies je klas...</option>
-            <option value="Klas-1">Klas 1</option>
-            <option value="Klas-2">Klas 2</option>
-            <option value="Klas-3">Klas 3</option>
+            <option value="">Kies je Unit...</option>
+            <option value="ALFA">ALFA</option>
+            <option value="BRAVO">BRAVO</option>
+            <option value="CHARLIE">CHARLIE</option>
+            <option value="DELTA">DELTA</option>
+            <option value="ECHO">ECHO</option>
+            <option value="FOXTROT">FOXTROT</option>
+            <option value="GOLF">GOLF</option>
+            <option value="HOTEL">HOTEL</option>
+            <option value="JULIETT">JULIETT</option>
+            <option value="KILO">KILO</option>
+            <option value="LIMA">LIMA</option>
+            <option value="MIKE">MIKE</option>
         </select>
         <button onclick="startLes()">Start de les</button>
     </div>
 
     <div id="les-scherm">
+        <div id="display-info" class="header-info"></div>
         <h2>Wettekst: Artikel 8 WVW 1994</h2>
         <div class="scroll-wet">
-            Artikel 81568Toon relaties in LiDO<br>
-            Maak een permanente link<br>
-            Toon wetstechnische informatie<br>
-            ...<br>
-            Druk het regelingonderdeel af<br>
-            Sla het regelingonderdeel op<br>
-            <strong>1.</strong> Het is een ieder verboden een voertuig te besturen, als bestuurder te doen besturen of als begeleider op te treden, terwijl hij verkeert onder zodanige invloed van een stof, waarvan hij weet of redelijkerwijs moet weten, dat het gebruik daarvan - al dan niet in combinatie met het gebruik van een andere stof - de rijvaardigheid kan verminderen, dat hij niet tot behoorlijk besturen of tot behoorlijk te begeleiden in staat moet worden geacht.<br><br>
-            <strong>2.</strong> Het is een ieder verboden een voertuig te besturen, als bestuurder te doen besturen of als begeleider op te treden na zodanig gebruik van alcoholhoudende drank, dat:<br>
-            a. het alcoholgehalte in zijn adem bij een onderzoek hoger blijkt te zijn dan 220 microgram alcohol per liter uitgeademde lucht, dan wel<br>
-            b. het alcoholgehalte in zijn bloed bij een onderzoek hoger blijkt te zijn dan 0,5 milligram alcohol per milliliter bloed.<br><br>
-            <strong>3.</strong> In afwijking van het tweede lid is het de bestuurder van een motorrijtuig voor het besturen waarvan een rijbewijs is vereist, verboden dat motorrijtuig te besturen of als bestuurder te doen besturen na zodanig gebruik van alcoholhoudende drank, dat:<br>
-            a. het alcoholgehalte van zijn adem bij een onderzoek hoger blijkt te zijn dan 88 microgram alcohol per liter uitgeademde lucht, dan wel<br>
-            b. het alcoholgehalte van zijn bloed bij een onderzoek hoger blijkt te zijn dan 0,2 milligram per milliliter bloed,<br>
-            indien:<br>
-            1° sedert de datum waarop hem voor de eerste maal een rijbewijs voor de categorie AM of T is afgegeven nog geen zeven jaren zijn verstreken en hij op het tijdstip van afgifte van dat rijbewijs de leeftijd van achttien jaar nog niet heeft bereikt,<br>
-            2°. sedert de datum waarop hem voor het eerst een rijbewijs is afgegeven nog geen vijf jaren zijn verstreken en hij op het tijdstip van afgifte van dat rijbewijs de leeftijd van ten minste achttien jaar heeft bereikt, dan wel<br>
-            3°. indien sedert de datum waarop hem voor het eerst een rijbewijs voor de categorie B is afgegeven nog geen vijf jaren zijn verstreken en hij op het tijdstip van afgifte van het rijbewijs voor de categorie B nog niet de leeftijd van achttien jaar heeft bereikt, ongeacht of hij op dat tijdstip van afgifte van het rijbewijs voor de categorie B al in het bezit was van een rijbewijs voor de categorie AM of T.<br><br>
-            <strong>4.</strong> Het derde lid is van overeenkomstige toepassing op een ieder die zonder dat aan hem een rijbewijs is afgegeven een motorrijtuig bestuurt voor het besturen waarvan een rijbewijs vereist is.<br><br>
-            <strong>5.</strong> Het is een ieder verboden een voertuig te besturen, als bestuurder te doen besturen of als begeleider op te treden na gebruik van een of meer van de bij algemene maatregel van bestuur aangewezen stoffen als bedoeld in het eerste lid, waardoor het gehalte in zijn bloed van de bij de stof vermelde meetbare stof, of in geval van gebruik van meer stoffen als bedoeld in het eerste lid die bij algemene maatregel van bestuur aangewezen zijn als groep, het totale gehalte in zijn bloed van de bij die stoffen vermelde meetbare stoffen, bij een onderzoek hoger blijkt te zijn dan de daarbij vermelde grenswaarde. Indien een van de bij algemene maatregel van bestuur aangewezen stoffen of alcohol in combinatie wordt gebruikt met een of meer andere van deze aangewezen stoffen of met een van de stoffen als bedoeld in het eerste lid die niet bij deze algemene maatregel van bestuur zijn aangewezen, geldt voor iedere aangewezen stof of alcohol afzonderlijk een bij algemene maatregel van bestuur vast te stellen grenswaarde. Die grenswaarde is gelijk aan de laagst meetbare hoeveelheid van die stof of alcohol die niet op natuurlijke wijze in het bloed aanwezig kan zijn.<br><br>
-            <strong>6.</strong> Het is verboden een motorrijtuig als bestuurder te doen besturen door een persoon waarvan men weet of redelijkerwijs moet weten dat deze verkeert in een toestand als in het eerste, tweede, derde of vijfde lid is omschreven.<br><br>
-            <strong>7.</strong> Voor de toepassing van het derde lid wordt onder een rijbewijs mede verstaan een rijbewijs, afgegeven door het daartoe bevoegde gezag buiten Nederland en wordt voor de toepassing van het derde lid, aanhef en onderdelen 1° en 3°, met een rijbewijs voor de categorie AM of T gelijk gesteld een rijbewijs voor de categorie A1, afgegeven door het daartoe bevoegde gezag in een andere lidstaat van de Europese Unie, een andere staat die partij is bij de Overeenkomst betreffende de Europese Economische Ruimte of Zwitserland aan een persoon die op het tijdstip van afgifte nog niet de leeftijd van achttien jaar had bereikt.
+            <strong>1.</strong> Het is een ieder verboden een voertuig te besturen, als bestuurder te doen besturen of als begeleider op te treden, terwijl hij verkeert onder zodanige invloed van een stof...<br><br>
+            <strong>2.</strong> Het is een ieder verboden een voertuig te besturen... na zodanig gebruik van alcoholhoudende drank, dat:<br>
+            a. ademgehalte > 220 µg/l.<br>
+            b. bloedgehalte > 0,5 mg/ml.<br><br>
+            <strong>3.</strong> [Beginnend bestuurder]:<br>
+            a. ademgehalte > 88 µg/l.<br>
+            b. bloedgehalte > 0,2 mg/ml.
         </div>
 
         <div class="casus-box">
             <h3>De Casus</h3>
-            Slingerende auto, 45-jarige bestuurder (20 jaar rijbewijs), uitslag 'A', blaast op bureau <strong>355 Ug/l</strong>.
+            <p>Slingerende auto, 45-jarige bestuurder (20 jaar rijbewijs), uitslag 'A', blaast op bureau <strong>355 µg/l</strong>.</p>
         </div>
 
         <h3>Invoer</h3>
-        <label>DAA (Doel-Aanpak-Analyse):</label>
-        <textarea id="daaInput" placeholder="Typ hier de DAA..."></textarea>
+        <label><strong>DAA (Doel-Aanpak-Analyse):</strong></label>
+        <textarea id="daaInput" rows="3" placeholder="Wat is je doel en hoe pak je dit aan?"></textarea>
         
-        <label>PV Bevindingen:</label>
-        <textarea id="pvInput" placeholder="Stel hier het PV op..."></textarea>
+        <label><strong>PV Bevindingen:</strong></label>
+        <textarea id="pvInput" rows="5" placeholder="Noteer hier de waarnemingen en feiten voor het proces-verbaal..."></textarea>
         
         <button onclick="verstuurUitwerking()">Verstuur naar Livefeed</button>
 
         <div class="live-feed">
             <h2>Livefeed Feedback</h2>
-            <div id="liveFeedContainer">
-                </div>
+            <div id="liveFeedContainer"></div>
         </div>
 
-        <button class="reset-btn" onclick="resetSessie()">Reset Klas Data</button>
+        <button class="reset-btn" onclick="resetSessie()">Reset Unit Data (Docent)</button>
     </div>
 </div>
 
